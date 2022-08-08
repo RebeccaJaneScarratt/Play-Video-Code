@@ -1,0 +1,674 @@
+# imports
+import os
+import pygame, sys
+import random
+import pandas as pd
+from pyvidplayer import Video
+from pygame.locals import *
+from psychopy import __version__, gui, data
+os.chdir('C:/Users/au672599/OneDrive - Aarhus Universitet/Documents/PhD Rebecca/Behavioural experiment/psychopy seems')
+
+import py3david
+working_directory= 'C:/Users/au672599/OneDrive - Aarhus Universitet/Documents/PhD Rebecca/Behavioural experiment/psychopy seems'
+
+pygame.init()
+pygame.font.init()
+pygame.mixer.quit()
+
+# class and function definitions
+class Circle(pygame.sprite.Sprite):
+    def __init__(self,image, rectangle_height):
+        width= image.get_width()
+        height = image.get_height()
+        scale = rectangle_height*2/height # because we want the circle to be twice the width of the rectangle
+        self.image = pygame.transform.scale(image, (int(width*scale), int(height*scale)))
+        super().__init__()
+        self.rect = self.image.get_rect()
+    def update(self):
+        self.rect.center = pygame.mouse.get_pos()
+        
+class SAM(pygame.sprite.Sprite):
+    def __init__(self,image, rectangle_width):
+        width= image.get_width()
+        height = image.get_height()
+        scale = rectangle_width/width
+        self.image = pygame.transform.scale(image, (int(width*scale), int(height*scale)))
+        super().__init__()
+        self.rect = self.image.get_rect()
+    def update(self):
+        self.rect.center = screen_width//2, screen_height - ((screen_height//5)*2.5)
+
+class RatingText(pygame.sprite.Sprite):
+    def __init__(self, element, pos_x, pos_y, text_color, background_color, size):
+        super().__init__()
+        font = pygame.font.SysFont(chosen_font, size)
+        text = font.render(element, True, text_color, background_color)
+        W = text.get_width()
+        H = text.get_height()
+        self.image = pygame.Surface((W, H))
+        
+        textrect= text.get_rect(center=self.image.get_rect().center)
+        
+        self.image.blit(text, textrect)
+        
+        self.rect = self.image.get_rect(center = [pos_x, pos_y])
+        
+grey = (128,128,128)
+white= (255,255,255)
+black= (0,0,0)
+    
+# General setup
+
+clock = pygame.time.Clock()
+
+# Changeable variables
+screen_width =  1020
+screen_height = 720
+arousal_choices= ['Very Relaxed', '', '', 'Neither', '', '', 'Very Excited']
+valence_choices= ['Very Sad', '', '', 'Neither', '', '', 'Very Happy']
+confidence_choices= ['Not Confident', '', '', 'Neutral', '', '', 'Very Confident']
+liking_choices= ['Not at all', '', '', 'Neutral', '', '', 'A lot']
+picture_path_arousal = "arousal.png"
+picture_path_valence = "valence.png"
+picture_path_confidence = "confidence.png"
+chosen_font = 'georgia'
+arousal_text = 'How excited does the melody make you feel?'
+valence_text = 'How happy or sad does the melody make you feel?'
+confidence_text = 'How confident do you feel about your previous answers?'
+distractor_text = 'The experimenter will now ask you a question' # or decide to do random questions via screen
+liking_text= 'How much do you enjoy singing this melody?'
+end_text = 'Session Complete, please press SPACE to close'
+
+### The GUI information
+info = {'Subject Number':'', 
+        'Session': '',
+     'Condition':['','A', 'B'],
+     'Melody 1': '', 
+     'Melody 2': '', 
+     'Melody 3': '', 
+     'Melody 4': '', 
+     'Melody 5': '', 
+     'Melody 6': '', 
+     'PsychoPy Version': __version__,
+     'Debug Mode': True}
+info['dateStr'] = data.getDateStr()  # add the current time
+ # Use this dict to create the dlg
+infoDlg = gui.DlgFromDict(dictionary=info, 
+     title='SEEMSong_Piloting2',
+     order=['PsychoPy Version', 'Subject Number', 'Session', 'Condition', 'Melody 1', 'Melody 2', 'Melody 3', 'Melody 4', 'Melody 5', 'Melody 6'],
+     fixed=['PsychoPy Version'])  # This attribute can't be changed by the user
+ # Script will now wait for the dlg to close...
+ 
+if infoDlg.OK:  # This will be True if user hit OK...
+     print(info)
+else: # ...or False, if they hit Cancel
+     print('User Cancelled')
+     pygame.quit()
+ 
+ # Turning the correct melodies into a random order
+Melody1= info['Melody 1']
+Melody2= info['Melody 2']
+Melody3= info['Melody 3']
+Melody4= info['Melody 4']
+Melody5= info['Melody 5']
+Melody6= info['Melody 6']
+
+for i in range(6):
+    for y in range (1,5):
+        if info['Melody ' + str(i+1)] == info['Melody ' + str(y+1)]:
+            error = True
+
+Melodies = [Melody1, Melody2, Melody3, Melody4, Melody5, Melody6]
+
+order1 = Melodies.copy()
+order2 = Melodies.copy()
+order3 = Melodies.copy()
+
+random.shuffle(order1)
+random.shuffle(order2)
+random.shuffle(order3)
+
+
+ # make a folder and file to save data
+participant_folder= os.path.join(working_directory + '/' + str(info['Subject Number']))
+if not os.path.exists(participant_folder):
+    os.mkdir(participant_folder)
+
+sfolderrecname = os.path.join(participant_folder + '/' + 'audio')
+if not os.path.exists(sfolderrecname):
+    os.mkdir(sfolderrecname)
+
+
+#%% Creating al variables needed for the functions
+# screen set up
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.mouse.set_visible(True)
+pygame.display.set_caption("SeemSong")
+
+# rectangle
+rectangle_width = screen_width*0.8
+rectangle_height = rectangle_width * 0.03
+side_space = (screen_width - rectangle_width ) /2
+rectangle_positions = [side_space,screen_width - side_space]
+rectangle_y = screen_height - screen_height/5
+
+# text
+text_size = int(rectangle_height * 0.3 + rectangle_height)
+font = pygame.font.SysFont(chosen_font, text_size)
+text_colour = black
+
+#intro text
+intro_text_1 = font.render('Welcome!', True, text_colour, grey)
+intro_text_2 = font.render('Press SPACE to continue', True, text_colour, grey)
+intro_text_1Rect = intro_text_1.get_rect()
+intro_text_1Rect.center = (screen_width // 2, screen_height // 2)
+intro_text_2Rect = intro_text_2.get_rect()
+intro_text_2Rect.center = (screen_width // 2, (screen_height // 5 *3))
+
+# arousal text
+arousal_text_text = font.render(arousal_text, True, text_colour, grey)
+arousal_text_rect = arousal_text_text.get_rect()
+arousal_text_rect.center = (screen_width // 2, screen_height - (screen_height// 5)*4)
+
+# valence text
+valence_text_text = font.render(valence_text, True, text_colour, grey)
+valence_text_rect = valence_text_text.get_rect()
+valence_text_rect.center = (screen_width // 2, screen_height - (screen_height// 5)*4)
+
+# confidence text
+confidence_text_text = font.render(confidence_text, True, text_colour, grey)
+confidence_text_rect = confidence_text_text.get_rect()
+confidence_text_rect.center = (screen_width // 2, screen_height - (screen_height// 5)*4)
+
+# distractor text
+distractor_text_text = font.render(distractor_text, True, text_colour, grey)
+distractor_text_rect = distractor_text_text.get_rect()
+distractor_text_rect.center = (screen_width // 2, screen_height - (screen_height// 5)*4)
+
+# liking text
+liking_text_text = font.render(liking_text, True, text_colour, grey)
+liking_text_rect = liking_text_text.get_rect()
+liking_text_rect.center = (screen_width // 2, screen_height - (screen_height// 5)*4)
+
+# end text
+end_text_text = font.render(end_text, True, text_colour, grey)
+end_text_rect = end_text_text.get_rect()
+end_text_rect.center = (screen_width // 2, screen_height - (screen_height// 5)*4)
+
+# time left text
+time_left = 'time left:'
+time_left_text = font.render(time_left, True, text_colour, grey)
+
+# Circle
+circle_img = pygame.image.load("circle.png").convert_alpha()
+circle = Circle(circle_img, rectangle_height)
+circle_group = pygame.sprite.Group()
+circle_group.add(circle)
+
+# add sam_arousal picture
+sam_arousal_img = pygame.image.load(picture_path_arousal).convert()
+sam_arousal = SAM(sam_arousal_img, rectangle_width)
+sam_arousal_group = pygame.sprite.Group()
+sam_arousal_group.add(sam_arousal)
+
+# add sam_valence picture
+sam_valence_img = pygame.image.load(picture_path_valence).convert()
+sam_valence = SAM(sam_valence_img, rectangle_width)
+sam_valence_group = pygame.sprite.Group()
+sam_valence_group.add(sam_valence)
+
+# add sam_confidence picture
+sam_confidence_img = pygame.image.load(picture_path_confidence).convert()
+sam_confidence = SAM(sam_confidence_img, rectangle_width)
+sam_confidence_group = pygame.sprite.Group()
+sam_confidence_group.add(sam_confidence)
+
+# mouse position at click
+
+mouse_position = []
+
+
+trial_number = -1
+loop = 1
+current_order = order1
+
+# initiations
+valence_rating_score = {}
+arousal_rating_score = {}
+confidence_rating_score = {}
+liking_rating_score = {}
+
+david_bridge = py3david.py3david()
+david_bridge.connect()   
+current_preset= 0 
+
+timer = 45  # Decrease this to count down.
+dt = 0  # Delta time (time since last tick).
+
+#%% Functions
+# Welcome messages and explanation (no explanation included yet)
+
+def intro():
+    while True:
+    # completely fill the surface object with grey color
+        screen.fill(grey)
+    # copying the text surface object to the display surface object at the given coordinates.
+        screen.blit(intro_text_1, intro_text_1Rect)
+        screen.blit(intro_text_2, intro_text_2Rect)
+        start_time = clock.get_time()
+    # iterate over the list of Event objects that was returned by pygame.event.get() method.
+        for event in pygame.event.get():
+        # if event object type is mousebuttondown then quitting the pygame and program both.
+            if event.type== pygame.KEYDOWN:
+                if event.key== pygame.K_LEFT:
+                    print( 'left')
+                if event.key == pygame.K_RIGHT:
+                    print('right')
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                if event.key == pygame.K_SPACE:
+                    name()
+        # Draws the surface object to the screen.
+        pygame.display.update()
+        clock.tick(60)
+        
+# Showing the name of the melody to be sung
+def name():
+    global trial_number
+    global loop
+    global current_order
+    global current_preset
+    trial_number = trial_number + 1
+    if trial_number == 6:
+        loop = loop + 1
+        trial_number = 0
+        print('All 6 trials run')
+        print('arousal:', arousal_rating_score, 'valence:', valence_rating_score, 'confidence:', confidence_rating_score)
+    if info['Condition'] == 'A':
+        if loop == 1:
+            current_preset = 17 # happy extreme preset
+        elif loop == 3:
+            current_preset = 16 # sad extreme preset 
+        else:
+            current_preset = 1 # neutral
+    if info['Condition'] == 'B':
+         if loop == 1: # six first trials/ first loop
+             current_preset = 16 # sad extreme preset
+         elif loop == 3:
+             current_preset = 17 # happy extreme preset 
+         else:
+             current_preset = 1 # neutral
+    if loop == 4:
+        pygame.quit()
+    print('trial number:' , trial_number)
+    print('loop number:', loop)
+    if loop == 1:
+        current_order = order1
+    if loop == 2:
+        current_order = order2
+    if loop == 3:
+        current_order = order3
+    print ('current order' + str(current_order))
+    im = pygame.image.load(current_order[trial_number] +'_name.jpg')
+    image_width = im.get_width()
+    image_height = im.get_height()
+   # im = pygame.transform.scale(im, (int(image_width * (screen_width/image_width)), int(image_height * (screen_height/image_height))))
+    im_rect = im.get_rect(center = [screen_width//2, screen_height//2])
+    display_image = True
+    while True:
+        screen.fill(grey)
+        if display_image == True:
+            screen.blit(im, im_rect)
+        for event in pygame.event.get():
+            if event.type ==pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+        pygame.display.flip()
+        print('we are waiting')
+        pygame.time.delay(1000)
+        print('we have waited')
+        display_image = False
+        if display_image == False:
+            video(Video(str(current_order[trial_number]) +'_metronome.mp4'))
+        pygame.display.flip()
+        clock.tick(60)
+
+
+# =============================================================================
+# # Play video loop
+# def video(video):
+#         #preset variables setting
+#     if info['Condition'] == 'A':
+#         if loop == 1:
+#             current_preset = 17 # happy extreme preset
+#         elif loop == 3:
+#             current_preset = 16 # sad extreme preset 
+#         else:
+#             current_preset = 1 # neutral
+#     if info['Condition'] == 'B':
+#         if loop == 1: # six first trials/ first loop
+#             current_preset = 16 # sad extreme preset
+#         elif loop == 3:
+#             current_preset = 17 # happy extreme preset 
+#         else:
+#             current_preset = 1 # neutral
+#     #hold time setting
+#     current_hold_time = 0
+#     #ramp time setting
+#     current_ramp_time = 0
+#     #naming recorded audio files
+#     sfrecname = 'loop' + str(loop) + 'trial_' + str(trial_number) + '_ melody_' + current_order[trial_number] + '_preset_' + str(current_preset) + '_hold_time_' + str(current_hold_time) + '_ramp_time_' + str(current_ramp_time)
+#     #saving audio file and all settings during recoring, this activates david
+#     david_bridge.MicRecord(sfrecname, preset=current_preset, hold_time=0, ramp_time=0, sfolderrecname = sfolderrecname)
+#     # It's not recording, the error sfrecord~: start requested without preceding 'open'appears on MaxConsole
+#     vid = Video(video)
+#     vid.set_size((screen_width, screen_height))
+#     print(vid.active)
+#     while True:
+#         vid.draw(screen, (0, 0))
+#         for event in pygame.event.get():
+#             if event.type == pygame.KEYDOWN:
+#                 if event.key == pygame.K_q:
+#                     vid.close()
+#                     pygame.quit()
+#         if vid.active == False:
+#             arousal()
+#         pygame.display.update()
+#         clock.tick(60)
+# =============================================================================
+def video(vid):
+    global trial_number
+    print(trial_number)
+    video_duration = vid.duration
+    while True:
+        vid.set_size((screen_width, screen_height))
+        vid.draw(screen, (0, 0))
+        pygame.display.update()
+        video_data = vid.get_playback_data()
+        print(video_data['time'])
+        print(type(video_data['time']))
+        print(video_duration)
+        if video_data['time'] > video_duration - 0.25:
+            vid.close()
+            arousal()
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                vid.close()
+                arousal()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_i:
+                    print(vid.get_playback_data())
+                    print(vid.duration)
+        clock.tick(60)
+
+# Arousal Rating loop
+def arousal():
+    hover = False
+    choices = arousal_choices
+    text_positions_x = []
+    for i in range(0, 7):
+        new_positions_x = rectangle_positions[0] + rectangle_width / 6 * i
+        text_positions_x.append(new_positions_x)
+        i = i + 1
+    text_positions_y = rectangle_y - rectangle_height * 2  # to make the text appear two times the rectangle height above the rectangle
+    text_group= pygame.sprite.Group()
+    for x_pos in range (7):
+        new_text = RatingText(choices[x_pos], text_positions_x[x_pos] , text_positions_y , black, grey, text_size)
+        text_group.add(new_text)
+    while True:
+        screen.fill(grey)
+        rectangle= pygame.draw.rect(screen, white, ((screen_width-rectangle_width)/2, rectangle_y , rectangle_width, rectangle_height))
+        sam_arousal_group.draw(screen)
+        sam_arousal_group.update()
+        text_group.draw(screen)
+        screen.blit(arousal_text_text, arousal_text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type== pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if rectangle.collidepoint(pygame.mouse.get_pos())== True:
+                        print ("clicked")
+                        mouse_position = pygame.mouse.get_pos()
+                        print ('trial number = ' , trial_number)
+                        arousal_rating_score['loop' + str(loop) + '_' + 'trial' + str(trial_number)+ '_song' + str(current_order[trial_number])+ '_preset' + str(current_preset)] = (mouse_position[0]-side_space) * 6 / (rectangle_positions[1]-side_space) + 1
+                        valence()
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == True:
+            hover = True
+            circle_group.draw(screen)
+            circle_group.update()
+            pygame.mouse.set_visible(False)
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == False:
+            hover == False
+            pygame.mouse.set_visible(True)
+        pygame.display.update()
+        clock.tick(60)
+ 
+# Valence Rating loop
+def valence():
+    hover = False
+    choices = valence_choices
+    text_positions_x = []
+    for i in range(0, 7):
+        new_positions_x = rectangle_positions[0] + rectangle_width / 6 * i
+        text_positions_x.append(new_positions_x)
+        i = i + 1
+    text_positions_y = rectangle_y - rectangle_height * 2  # to make the text appear two times the rectangle height above the rectangle
+    text_group= pygame.sprite.Group()
+    while True:
+        for x_pos in range (7):
+             new_text = RatingText(choices[x_pos], text_positions_x[x_pos] , text_positions_y , black, grey, text_size)
+             text_group.add(new_text)
+        screen.fill(grey)
+        rectangle= pygame.draw.rect(screen, white, ((screen_width-rectangle_width)/2, rectangle_y , rectangle_width, rectangle_height))
+        sam_valence_group.draw(screen)
+        sam_valence_group.update()
+        text_group.draw(screen)
+        screen.blit(valence_text_text, valence_text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type== pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if rectangle.collidepoint(pygame.mouse.get_pos())== True:
+                        print ("clicked")
+                        mouse_position = pygame.mouse.get_pos()
+                        print ('trial Number = ' , trial_number) 
+                        valence_rating_score['loop' + str(loop) + '_' + 'trial' + str(trial_number)+ '_song' + str(current_order[trial_number])+ '_preset' + str(current_preset)] = [(mouse_position[0]-side_space) * 6 / (rectangle_positions[1]-side_space) + 1]
+                        confidence()
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == True:
+            hover = True
+            circle_group.draw(screen)
+            circle_group.update()
+            pygame.mouse.set_visible(False)
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == False:
+            hover == False
+            pygame.mouse.set_visible(True)
+        pygame.display.update()
+        clock.tick(60)
+        
+# Confidence Rating loop
+def confidence():
+    global trial_number
+    hover = False
+    choices = confidence_choices
+    text_positions_x = []
+    for i in range(0, 7):
+        new_positions_x = rectangle_positions[0] + rectangle_width / 6 * i
+        text_positions_x.append(new_positions_x)
+        i = i + 1
+    text_positions_y = rectangle_y - rectangle_height * 2  # to make the text appear two times the rectangle height above the rectangle
+    text_group= pygame.sprite.Group()
+    while True:
+        for x_pos in range (7):
+             new_text = RatingText(choices[x_pos], text_positions_x[x_pos] , text_positions_y , black, grey, text_size)
+             text_group.add(new_text)
+        screen.fill(grey)
+        rectangle= pygame.draw.rect(screen, white, ((screen_width-rectangle_width)/2, rectangle_y , rectangle_width, rectangle_height))
+        sam_confidence_group.draw(screen)
+        sam_confidence_group.update()
+        text_group.draw(screen)
+        screen.blit(confidence_text_text, confidence_text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type== pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if rectangle.collidepoint(pygame.mouse.get_pos())== True:
+                        print ("clicked")
+                        mouse_position = pygame.mouse.get_pos()
+                        print ('trial Number =' , trial_number) 
+                        confidence_rating_score['loop' + str(loop) + '_' + 'trial' + str(trial_number) + '_song' + str(current_order[trial_number])+ '_preset' + str(current_preset)] = [(mouse_position[0]-side_space) * 6 / (rectangle_positions[1]-side_space) + 1]
+                        if trial_number == 5 and loop != 3:
+                            distractor()
+                        if loop == 3:
+                            liking()
+                        else:
+                            name()
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == True:
+            hover = True
+            circle_group.draw(screen)
+            circle_group.update()
+            pygame.mouse.set_visible(False)
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == False:
+            hover == False
+            pygame.mouse.set_visible(True)
+    
+        pygame.display.update()
+        clock.tick(60)
+
+# loop while experimenter asks the distrcator question
+def distractor():
+    global counter
+    global timer
+    global dt
+    timer = 15  # Decrease this to count down.
+    dt = 0  # Delta time (time since last tick).
+    while True:
+        screen.fill(grey)
+        screen.blit(distractor_text_text, distractor_text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type== pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    print ("clicked")
+                    pygame.quit()   
+        timer -= dt
+        if timer <= 0:
+            name()  # Continue the loop by going to name
+        screen.fill(grey)
+        txt = font.render(str(round(timer)), True, black)
+        screen.blit(distractor_text_text, distractor_text_rect)
+        screen.blit(txt, (screen_width/5*4, screen_height/5*4))
+        screen.blit(time_left_text, (screen_width/5*3, screen_height/5*4)) 
+        pygame.display.flip()
+        dt = clock.tick(30) / 1000  # / 1000 to convert to seconds.
+    
+
+
+# Liking Rating loop
+def liking():
+    hover = False
+    choices = liking_choices
+    text_positions_x = []
+    for i in range(0, 7):
+        new_positions_x = rectangle_positions[0] + rectangle_width / 6 * i
+        text_positions_x.append(new_positions_x)
+        i = i + 1
+    text_positions_y = rectangle_y - rectangle_height * 2  # to make the text appear two times the rectangle height above the rectangle
+    text_group= pygame.sprite.Group()
+    for x_pos in range (7):
+        new_text = RatingText(choices[x_pos], text_positions_x[x_pos] , text_positions_y , black, grey, text_size)
+        text_group.add(new_text)
+    while True:
+        screen.fill(grey)
+        rectangle= pygame.draw.rect(screen, white, ((screen_width-rectangle_width)/2, rectangle_y , rectangle_width, rectangle_height))
+        text_group.draw(screen)
+        screen.blit(liking_text_text, liking_text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type== pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    if rectangle.collidepoint(pygame.mouse.get_pos())== True:
+                        print ("clicked")
+                        mouse_position = pygame.mouse.get_pos()
+                        print ('trial number = ' , trial_number)
+                        liking_rating_score['loop' + str(loop) + '_' + 'trial' + str(trial_number) + '_song' + str(current_order[trial_number])+ 'preset_' + str(current_preset)] = [(mouse_position[0]-side_space) * 6 / (rectangle_positions[1]-side_space) + 1]
+                        if trial_number == 5:
+                            end()
+                        else:
+                            name()
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == True:
+            hover = True
+            circle_group.draw(screen)
+            circle_group.update()
+            pygame.mouse.set_visible(False)
+        if rectangle.collidepoint(pygame.mouse.get_pos()) == False:
+            hover == False
+            pygame.mouse.set_visible(True)
+        pygame.display.update()
+        clock.tick(60)
+        
+# end screen
+def end():
+    while True:
+        screen.fill(grey)
+        screen.blit(end_text_text, end_text_rect)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type== pygame.KEYDOWN:
+                if event.key == pygame.K_q:
+                    pygame.quit()
+                if event.key == pygame.K_SPACE:
+                    calc()
+                    pygame.quit()
+            if event.type == MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    print ("clicked")
+                    pygame.quit()
+        pygame.display.flip()
+        pygame.display.update()
+        clock.tick(60)
+      
+def calc():
+    global arousal_rating_score
+    global valence_rating_score
+    global confidence_rating_score
+    global liking_rating_score
+    arousal_rating_score1 = pd.DataFrame.from_dict(arousal_rating_score, orient= 'Index', columns = ['Arousal']).reset_index(level=0)
+    valence_rating_score1 = pd.DataFrame.from_dict(valence_rating_score, orient= 'Index', columns = ['Valence']).reset_index(level=0)
+    confidence_rating_score1 = pd.DataFrame.from_dict(confidence_rating_score, orient= 'Index', columns = ['Confidence']).reset_index(level=0)
+    liking_rating_score1 = pd.DataFrame.from_dict(liking_rating_score, orient= 'Index', columns = ['Liking']).reset_index(level=0)
+
+    data = arousal_rating_score1.merge(valence_rating_score1, on = 'index').merge(confidence_rating_score1, on = 'index').merge(liking_rating_score1, how= 'left', on ='index')
+    data.to_csv(str(info['Subject Number']) + '_' + str(info['Session']) + '.csv')
+    
+# record audio
+# make the file for the participant write the correct ino (each melody rating along with an indication of the melody) 
+#%% which functions are played
+intro()
+calc()
