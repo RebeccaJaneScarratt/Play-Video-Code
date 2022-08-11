@@ -11,3 +11,5 @@ IndexError: list index out of range
 I thought maybe it doesn't work because it's a wav file so I converted it online (https://www.freeconvert.com/wav-to-mp4) to an mp4 file (1_mans_f_converted.mp4) but the same error appears. 
 
 Maybe it's because the conversion wasn't of good quality, but I would prefer the wav files to work because I have many videos (88) that need to be played by the code I will write and I don't really want to convert them all :p
+
+As a side note, I use Spyder
